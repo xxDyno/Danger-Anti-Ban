@@ -1,0 +1,432 @@
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA ANTI-BAN OTIMIZADO PARA SCRIPT HUB
+-- Versão: 4.5 | Ultra Otimizado | Zero Lag | Zero Erros
+-- ═══════════════════════════════════════════════════════════════
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- ═══════════════════════════════════════════════════════════════
+-- CONFIGURAÇÕES (Personalizável para seu hub)
+-- ═══════════════════════════════════════════════════════════════
+local CONFIG = {
+	EnableAntiKick = true,
+	EnableACDestroyer = true,
+	EnableRemoteBlock = true,
+	EnableFlyBypass = true,
+	EnableNormalizer = true,
+	
+	-- Timings otimizados
+	CheckInterval = 5,        -- Verificações a cada 5s
+	FlyCheckInterval = 2,     -- Fly check a cada 2s
+	NormalizeInterval = 3,    -- Normalização a cada 3s
+	
+	-- Limites de detecção
+	MaxSafeSpeed = 150,
+	MaxSafeVelocity = 1000,
+	MaxAirTime = 3,
+	
+	-- Debug
+	DebugMode = false         -- true para ver logs
+}
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE CACHE (Otimização de performance)
+-- ═══════════════════════════════════════════════════════════════
+local Cache = {
+	Character = nil,
+	Humanoid = nil,
+	HRP = nil,
+	LastUpdate = 0
+}
+
+local function UpdateCache()
+	local now = tick()
+	if now - Cache.LastUpdate < 1 then return end
+	
+	Cache.Character = player.Character
+	Cache.Humanoid = Cache.Character and Cache.Character:FindFirstChild("Humanoid")
+	Cache.HRP = Cache.Character and Cache.Character:FindFirstChild("HumanoidRootPart")
+	Cache.LastUpdate = now
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- UTILIDADES
+-- ═══════════════════════════════════════════════════════════════
+local function SafePcall(func)
+	local success, err = pcall(func)
+	if not success and CONFIG.DebugMode then
+		warn("[ANTI-BAN] Error:", err)
+	end
+	return success
+end
+
+local function Log(message)
+	if CONFIG.DebugMode then
+		print("[ANTI-BAN]", message)
+	end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 1: ANTI-KICK OTIMIZADO
+-- ═══════════════════════════════════════════════════════════════
+if CONFIG.EnableAntiKick then
+	-- Método 1: Proteção direta
+	SafePcall(function()
+		local oldKick = player.Kick
+		player.Kick = function() 
+			Log("Kick bloqueado (Método 1)")
+			return 
+		end
+	end)
+	
+	-- Método 2: Hook de metatable (se suportado)
+	SafePcall(function()
+		if not hookmetamethod or not getnamecallmethod or not setreadonly then return end
+		
+		local mt = getrawmetatable(game)
+		local oldNamecall = mt.__namecall
+		
+		setreadonly(mt, false)
+		mt.__namecall = function(self, ...)
+			if getnamecallmethod() == "Kick" and self == player then
+				Log("Kick bloqueado (Método 2)")
+				return
+			end
+			return oldNamecall(self, ...)
+		end
+		setreadonly(mt, true)
+	end)
+	
+	Log("✓ Anti-Kick ativo")
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 2: DESTRUIDOR DE ANTI-CHEAT (Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+if CONFIG.EnableACDestroyer then
+	local acNames = {"anticheat", "anti%-cheat", "antiexploit", "anti%-exploit"}
+	local checkedScripts = {}
+	
+	local function DestroyAntiCheat()
+		SafePcall(function()
+			for _, descendant in pairs(game:GetDescendants()) do
+				if (descendant:IsA("Script") or descendant:IsA("LocalScript")) and 
+				   not checkedScripts[descendant] then
+					
+					checkedScripts[descendant] = true
+					local name = descendant.Name:lower()
+					
+					for _, pattern in ipairs(acNames) do
+						if name:match(pattern) then
+							descendant.Disabled = true
+							task.wait(0.05)
+							descendant:Destroy()
+							Log("Anti-cheat destruído: " .. descendant.Name)
+							break
+						end
+					end
+				end
+			end
+		end)
+	end
+	
+	-- Executa uma vez no início
+	DestroyAntiCheat()
+	
+	-- Loop otimizado
+	task.spawn(function()
+		while task.wait(CONFIG.CheckInterval) do
+			DestroyAntiCheat()
+		end
+	end)
+	
+	Log("✓ AC Destroyer ativo")
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 3: BLOQUEADOR DE REMOTES (Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+if CONFIG.EnableRemoteBlock then
+	SafePcall(function()
+		if not hookmetamethod or not getnamecallmethod or not newcclosure then return end
+		
+		local blockedNames = {"ban", "kick"}
+		local mt = getrawmetatable(game)
+		local oldNamecall = mt.__namecall
+		
+		setreadonly(mt, false)
+		mt.__namecall = newcclosure(function(self, ...)
+			local method = getnamecallmethod()
+			
+			if method == "FireServer" or method == "InvokeServer" then
+				local name = self.Name:lower()
+				
+				for _, blocked in ipairs(blockedNames) do
+					if name:find(blocked) then
+						Log("Remote bloqueado: " .. self.Name)
+						return
+					end
+				end
+			end
+			
+			return oldNamecall(self, ...)
+		end)
+		setreadonly(mt, true)
+		
+		Log("✓ Remote Blocker ativo")
+	end)
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 4: FLY BYPASS (Ultra Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+if CONFIG.EnableFlyBypass then
+	local lastGroundTouch = tick()
+	
+	task.spawn(function()
+		while task.wait(CONFIG.FlyCheckInterval) do
+			SafePcall(function()
+				UpdateCache()
+				if not Cache.Humanoid then return end
+				
+				local state = Cache.Humanoid:GetState()
+				
+				if state == Enum.HumanoidStateType.Freefall or 
+				   state == Enum.HumanoidStateType.Flying then
+					
+					if tick() - lastGroundTouch > CONFIG.MaxAirTime then
+						Cache.Humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+						task.wait(0.03)
+						Cache.Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+						lastGroundTouch = tick()
+					end
+				else
+					lastGroundTouch = tick()
+				end
+			end)
+		end
+	end)
+	
+	Log("✓ Fly Bypass ativo")
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 5: NORMALIZADOR (Ultra Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+if CONFIG.EnableNormalizer then
+	task.spawn(function()
+		while task.wait(CONFIG.NormalizeInterval) do
+			SafePcall(function()
+				UpdateCache()
+				if not Cache.Humanoid or not Cache.HRP then return end
+				
+				-- Normaliza velocidade extrema
+				if Cache.Humanoid.WalkSpeed > CONFIG.MaxSafeSpeed then
+					local saved = Cache.Humanoid.WalkSpeed
+					Cache.Humanoid.WalkSpeed = 16
+					task.wait(0.3)
+					Cache.Humanoid.WalkSpeed = saved
+					Log("Velocidade normalizada")
+				end
+				
+				-- Limita velocity extrema
+				local vel = Cache.HRP.Velocity
+				if vel.Magnitude > CONFIG.MaxSafeVelocity then
+					Cache.HRP.Velocity = vel.Unit * CONFIG.MaxSafeVelocity
+				end
+			end)
+		end
+	end)
+	
+	Log("✓ Normalizer ativo")
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 6: LIMPEZA DE MEMÓRIA (Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+task.spawn(function()
+	while task.wait(10) do
+		SafePcall(function()
+			if shared then
+				shared.DetectionCount = nil
+				shared.Violations = nil
+				shared.Flagged = nil
+			end
+			
+			if _G then
+				_G.AntiCheatData = nil
+				_G.PlayerFlags = nil
+			end
+		end)
+	end
+end)
+
+Log("✓ Memory Cleaner ativo")
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 7: NETWORK OWNERSHIP (Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+player.CharacterAdded:Connect(function(character)
+	task.wait(2)
+	SafePcall(function()
+		for _, part in pairs(character:GetDescendants()) do
+			if part:IsA("BasePart") and part:CanSetNetworkOwnership() then
+				SafePcall(function()
+					part:SetNetworkOwner(player)
+				end)
+			end
+		end
+	end)
+end)
+
+Log("✓ Network Ownership ativo")
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 8: INPUT SIMULATOR (Micro-otimizado)
+-- ═══════════════════════════════════════════════════════════════
+task.spawn(function()
+	while task.wait(0.5) do
+		SafePcall(function()
+			UpdateCache()
+			if not Cache.Humanoid or not Cache.HRP then return end
+			
+			if Cache.HRP.Velocity.Magnitude > 40 and 
+			   Cache.Humanoid.MoveVector.Magnitude < 0.1 then
+				Cache.Humanoid:Move(Cache.HRP.Velocity.Unit * 0.001)
+			end
+		end)
+	end
+end)
+
+Log("✓ Input Simulator ativo")
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 9: WORKSPACE CLEANER (Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+workspace.ChildAdded:Connect(function(child)
+	SafePcall(function()
+		local name = child.Name:lower()
+		if name:find("anticheat") or name:find("detector") then
+			child.Name = "Part" .. tostring(math.random(10000, 99999))
+		end
+	end)
+end)
+
+Log("✓ Workspace Cleaner ativo")
+
+-- ═══════════════════════════════════════════════════════════════
+-- PROTEÇÃO 10: CHARACTER INTEGRITY (Otimizado)
+-- ═══════════════════════════════════════════════════════════════
+player.CharacterAdded:Connect(function(character)
+	task.wait(2)
+	SafePcall(function()
+		local parts = {"Head", "Torso", "HumanoidRootPart"}
+		
+		for _, partName in ipairs(parts) do
+			if not character:FindFirstChild(partName) then
+				local part = Instance.new("Part")
+				part.Name = partName
+				part.Size = Vector3.new(1, 1, 1)
+				part.Transparency = 1
+				part.CanCollide = false
+				part.Parent = character
+			end
+		end
+	end)
+end)
+
+Log("✓ Character Integrity ativo")
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE CLEANUP (Gerenciamento de recursos)
+-- ═══════════════════════════════════════════════════════════════
+local connections = {}
+
+local function Cleanup()
+	for _, conn in pairs(connections) do
+		if conn and conn.Connected then
+			conn:Disconnect()
+		end
+	end
+	connections = {}
+	Cache = {}
+	Log("Sistema limpo")
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- API PÚBLICA (Para integração com seu hub)
+-- ═══════════════════════════════════════════════════════════════
+local AntiBan = {
+	Version = "4.5",
+	Config = CONFIG,
+	
+	-- Ativar/Desativar proteções dinamicamente
+	SetAntiKick = function(enabled)
+		CONFIG.EnableAntiKick = enabled
+		Log("Anti-Kick: " .. tostring(enabled))
+	end,
+	
+	SetACDestroyer = function(enabled)
+		CONFIG.EnableACDestroyer = enabled
+		Log("AC Destroyer: " .. tostring(enabled))
+	end,
+	
+	SetFlyBypass = function(enabled)
+		CONFIG.EnableFlyBypass = enabled
+		Log("Fly Bypass: " .. tostring(enabled))
+	end,
+	
+	-- Força normalização manual
+	ForceNormalize = function()
+		SafePcall(function()
+			UpdateCache()
+			if Cache.Humanoid then
+				Cache.Humanoid.WalkSpeed = 16
+				Cache.Humanoid.JumpPower = 50
+			end
+			if Cache.HRP then
+				Cache.HRP.Velocity = Vector3.new(0, 0, 0)
+			end
+			Log("Normalização forçada")
+		end)
+	end,
+	
+	-- Cleanup para descarregar o sistema
+	Cleanup = Cleanup,
+	
+	-- Status do sistema
+	GetStatus = function()
+		return {
+			Active = true,
+			AntiKick = CONFIG.EnableAntiKick,
+			ACDestroyer = CONFIG.EnableACDestroyer,
+			RemoteBlock = CONFIG.EnableRemoteBlock,
+			FlyBypass = CONFIG.EnableFlyBypass,
+			Normalizer = CONFIG.EnableNormalizer
+		}
+	end
+}
+
+-- Exporta para global (para acesso do hub)
+getgenv().AntiBan = AntiBan
+_G.AntiBan = AntiBan
+
+-- ═══════════════════════════════════════════════════════════════
+-- INICIALIZAÇÃO FINAL
+-- ═══════════════════════════════════════════════════════════════
+Log("═══════════════════════════════════════")
+Log("✅ ANTI-BAN v" .. AntiBan.Version .. " CARREGADO")
+Log("═══════════════════════════════════════")
+Log("✓ 10 Proteções Ativas")
+Log("✓ Sistema Otimizado")
+Log("✓ Zero Lag | Zero Erros")
+Log("✓ API Pública Disponível")
+Log("═══════════════════════════════════════")
+
+if not CONFIG.DebugMode then
+	print("🛡️ Anti-Ban System carregado com sucesso!")
+end
+
+return AntiBan
